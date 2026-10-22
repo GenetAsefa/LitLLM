@@ -1,0 +1,92 @@
+# tuning_config.yml
+#
+# Per-dataset setup for tune_retriever.py (RotatE retriever, grid search).
+# Run with:   python run_tuning.py --config tuning_config.yml --dataset litwd19k
+#             python run_tuning.py --config tuning_config.yml --all --dry-run
+#
+# Keys under `defaults` apply to every dataset; keys under a dataset override
+# them. Key names are the tune_retriever.py CLI flags with dashes -> underscores.
+# Booleans (grid_search, fresh_study) become bare flags; lists become nargs.
+
+defaults:
+  model: rotate
+
+  # --- Search: exhaustive grid, as in the original RotatE paper ----------
+  grid_search: true
+  embedding_dims: [125, 250, 500, 1000]
+  batch_sizes: [512, 1024, 2048]
+  margins: [3, 6, 9, 12, 18, 24, 30]
+  adversarial_temperatures: [0.5, 1.0]
+
+  # Fixed at 256 (see tune_retriever.py docstring for the full justification).
+  negs_per_pos: 256
+
+  # Learning rate searched as a discrete grid dimension (the original RotatE
+  # paper never searched it; its own rates were 1e-4 / 5e-5, while
+  # Bringing-Light-Into-the-Dark and LiterallyWikidata searched log-scale
+  # [0.001, 0.1]). Half-decade grid from 1e-4 up to 1e-2: starts at RotatE's
+  # native rate, overlaps the lower part of the other papers' range, and skips
+  # rates (<=3e-5, >=0.03) likely to under-train or diverge with Adam.
+  # 5 values multiply the grid size by 5 (168 -> 840 trials). If the winner
+  # lands on 1e-4 or 1e-2 (an edge), the best value may lie outside the grid.
+  lr_grid_values: [0.0001, 0.0003, 0.001, 0.003, 0.01]
+
+  # --- Early stopping inside HPO trials (PyKEEN defaults, unchanged) ------
+  stopper_frequency: 10
+  stopper_patience: 4
+
+  # No timeout: the grid runs to completion (deliberate choice).
+  timeout: null
+
+  random_seed: 42
+
+dataset_defaults_note: >
+  Paths below are placeholders. dataset_dir must contain train.txt, valid.txt,
+  test.txt (tab-separated h, r, t). Adjust `device` to the GPU index on your
+  machine.
+
+datasets:
+  # 26k train triples (~25 steps/epoch at batch 1024). LiterallyWikidata ran
+  # LitWD1K trials AND the final retrain at 1000 epochs, so 1000/1000 here;
+  # 400 epochs would be only ~10k steps, far below RotatE's original budget.
+  litwd1k:
+    dataset_dir: ../LiterallyWikidata-main/Datasets/LitWD1K
+    dataset_name: LitWD1K
+    out_dir: runs/litwd1k
+    max_epochs: 1000
+    final_epochs: 1000
+    replicates: 3           # test metrics averaged over 3 seeds (baseline table)
+    device: cuda:0          # TITAN X (Pascal) 12 GB in the LiterallyWikidata paper
+    grid_search: false
+    n_trials: 100
+
+  # 260k train triples (~254 steps/epoch at batch 1024), so 400 epochs is
+  # ~100k steps, matching RotatE's FB15k-237 budget. Final retrain gets 2x,
+  # mirroring LiterallyWikidata's 500 -> 1000 trial/retrain split.
+  litwd19k:
+    dataset_dir: ../LiterallyWikidata-main/Datasets/LitWD19K
+    dataset_name: LitWD19K
+    out_dir: runs/litwd19k
+    max_epochs: 400
+    final_epochs: 800
+    replicates: 3
+    device: cuda:0          # TITAN X (Pascal) 12 GB
+    grid_search: false
+    n_trials: 100
+
+  # 303k train triples (~296 steps/epoch at batch 1024); same epoch budget as
+  # 19K. Single replicate (cost): disclosed as a limitation, following
+  # LiterallyWikidata, which retrained LitWD48K once. With one replicate there
+  # is nothing to average or select: that one model is both the reported
+  # baseline number and the retriever.
+  litwd48k:
+    dataset_dir: ../LiterallyWikidata-main/Datasets/LitWD48K
+    dataset_name: LitWD48K
+    out_dir: runs/litwd48k
+    max_epochs: 400
+    final_epochs: 800
+    replicates: 1
+    device: cuda:0          # NVIDIA Tesla V100S 32 GB in the LiterallyWikidata paper
+    grid_search: false
+    n_trials: 100
+    
