@@ -1,5 +1,5 @@
 # LitLLM
-Literal-Aware KGC (GOBLIN COST Action CA23147)" 
+*Literal-Aware KGC (GOBLIN COST Action CA23147)*
 
 
 This work is part of research **"Literal-Aware Refinement of Knowledge Graphs via Large Language Models"**  conducted during a **Short-Term Scientific Mission (STSM) 
